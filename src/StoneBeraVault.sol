@@ -45,7 +45,6 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
     struct RedeemRequest {
         uint256 requestRound;
         uint256 requestShares;
-        uint256 redeemAssets; // calculated as withdrawToken
     }
 
     event Deposit(
@@ -193,7 +192,6 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
 
         lpToken.burn(address(this), requestShares);
 
-        redeemRequest.redeemAssets = 0;
         redeemRequest.requestShares = 0;
 
         redeemableAmountInPast -= claimable;
@@ -220,9 +218,6 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
     function claimableRedeemRequest() public view returns (uint256 assets) {
         RedeemRequest memory redeemRequest = redeemRequests[msg.sender];
 
-        if (redeemRequest.redeemAssets != 0) {
-            assets = redeemRequest.redeemAssets;
-        }
         uint256 round = redeemRequest.requestRound;
         if (round < latestRoundID && redeemRequest.requestShares != 0) {
             assets += redeemRequest.requestShares.mulDiv(
@@ -251,6 +246,7 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
                 totalManagedAssets += value;
             }
         }
+        totalManagedAssets += assetsBorrowed;
     }
 
     function activeAssets() public view returns (uint256 assets) {
