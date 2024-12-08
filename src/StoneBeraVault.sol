@@ -33,6 +33,7 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
     mapping(address => RedeemRequest) public redeemRequests;
     mapping(uint256 => uint256) public roundPricePerShare;
     mapping(uint256 => uint256) public withdrawTokenPrice;
+    mapping(address => bool) public depositPaused;
 
     uint256 public latestRoundID;
     uint256 public cap;
@@ -65,6 +66,7 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
         uint256 withdrawTokenPrice
     );
     event SetCap(uint256 oldValue, uint256 newValue);
+    event SetDepositPause(address asset, bool flag);
     event AddUnderlyingAsset(address indexed asset);
     event RemoveUnderlyingAsset(address indexed asset);
     event AssetsWithdrawn(address indexed asset, uint256 amount, uint256 value);
@@ -93,6 +95,7 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
         uint256 _amount,
         address _receiver
     ) public returns (uint256 shares) {
+        if (depositPaused[_asset]) revert DepositPaused();
         if ((shares = previewDeposit(_asset, _amount)) == 0)
             revert ZeroShares();
 
@@ -115,6 +118,7 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
         uint256 _shares,
         address _receiver
     ) external returns (uint256 assets) {
+        if (depositPaused[_asset]) revert DepositPaused();
         if (_shares == 0) revert ZeroShares();
         if (lpToken.totalSupply() + _shares > cap) revert DepositCapped();
 
@@ -458,5 +462,13 @@ contract StoneBeraVault is AccessControl, ReentrancyGuard {
         isUnderlyingAssets[_asset] = false;
 
         emit RemoveUnderlyingAsset(_asset);
+    }
+
+    function setDepositPause(
+        address _token,
+        bool _pause
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        depositPaused[_token] = _pause;
+        emit SetDepositPause(_token, _pause);
     }
 }

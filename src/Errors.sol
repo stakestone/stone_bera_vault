@@ -15,6 +15,8 @@ error InvalidArrayLength();
 
 error DepositCapped();
 
+error DepositPaused();
+
 error ZeroShares();
 
 error NoRequestingShares();
