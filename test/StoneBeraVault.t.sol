@@ -338,6 +338,11 @@ contract StoneBeraVaultTest is Test {
         assertEq(stoneBeraVault.pendingRedeemRequest(), 0);
         assertEq(stoneBeraVault.getRate(), 1e18);
 
+        lpToken.approve(address(stoneBeraVault), 5e17);
+        stoneBeraVault.requestRedeem(5e17);
+        assertEq(stoneBeraVault.pendingRedeemRequest(), 5e17);
+        assertEq(stoneBeraVault.getRate(), 1e18);
+
         vm.stopPrank();
     }
 
