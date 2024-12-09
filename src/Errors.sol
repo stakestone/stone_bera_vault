@@ -22,3 +22,7 @@ error ZeroShares();
 error NoRequestingShares();
 
 error NoClaimableRedeem();
+
+error InvalidRequest();
+
+error InvalidRequestToken();
