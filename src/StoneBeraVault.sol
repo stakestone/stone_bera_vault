@@ -363,7 +363,6 @@ contract StoneBeraVault is AccessControl {
 
         roundPricePerShare[latestRoundID] = rate;
         withdrawTokenPrice[latestRoundID] = price;
-        latestRoundID++;
 
         emit RollToNextRound(
             latestRoundID,
@@ -372,6 +371,7 @@ contract StoneBeraVault is AccessControl {
             rate,
             price
         );
+        latestRoundID++;
     }
 
     function withdrawAssets(
