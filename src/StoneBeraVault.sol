@@ -2,7 +2,6 @@
 pragma solidity 0.8.26;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
@@ -12,7 +11,7 @@ import {OracleConfigurator} from "./oracle/OracleConfigurator.sol";
 
 import "./Errors.sol";
 
-contract StoneBeraVault is AccessControl, ReentrancyGuard {
+contract StoneBeraVault is AccessControl {
     using Math for uint256;
 
     bytes32 public constant VAULT_OPERATOR_ROLE =
