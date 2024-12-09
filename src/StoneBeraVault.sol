@@ -223,7 +223,7 @@ contract StoneBeraVault is AccessControl {
 
         uint256 round = redeemRequest.requestRound;
         if (round < latestRoundID && redeemRequest.requestShares != 0) {
-            assets += redeemRequest.requestShares.mulDiv(
+            assets = redeemRequest.requestShares.mulDiv(
                 roundPricePerShare[round],
                 withdrawTokenPrice[round],
                 Math.Rounding.Floor
