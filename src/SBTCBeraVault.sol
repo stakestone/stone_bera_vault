@@ -361,6 +361,10 @@ contract SBTCBeraVault is AccessControl {
         isUnderlyingAsset[_asset] = true;
         underlyingAssets.push(_asset);
 
+        uint8 decimals = ERC20(_asset).decimals();
+        if (decimals > 18) revert InvalidDecimals();
+        tokenDecimals[_asset] = decimals;
+
         emit AddUnderlyingAsset(_asset);
     }
 
@@ -381,6 +385,7 @@ contract SBTCBeraVault is AccessControl {
             }
         }
         isUnderlyingAsset[_asset] = false;
+        delete tokenDecimals[_asset];
 
         emit RemoveUnderlyingAsset(_asset);
     }

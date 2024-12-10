@@ -28,3 +28,5 @@ error InvalidRequest();
 error InvalidRequestToken();
 
 error CannotRemove();
+
+error InvalidDecimals();
