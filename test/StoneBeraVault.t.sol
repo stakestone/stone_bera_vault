@@ -9,9 +9,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {StoneBeraVault} from "../src/StoneBeraVault.sol";
 import {Token} from "../src/Token.sol";
 import {OracleConfigurator} from "../src/oracle/OracleConfigurator.sol";
+import {DepositWrapper} from "../src/wrapper/DepositWrapper.sol";
 
 import {MockToken} from "./MockToken.sol";
 import {MockOracle} from "./MockOracle.sol";
+import {WETH9} from "./WETH9.sol";
 
 import "../src/Errors.sol";
 
@@ -504,6 +506,30 @@ contract StoneBeraVaultTest is Test {
         assertEq(stoneBeraVault.claimableRedeemRequest(), 0);
         assertEq(stoneBeraVault.pendingRedeemRequest(), 0);
         assertEq(tokenB.balanceOf(alice), redeemable);
+        vm.stopPrank();
+    }
+
+    function test_wrapper() public {
+        address alice = address(0xA11CE);
+        address bob = address(0xB0B);
+
+        deal(alice, 100 * 1e18);
+        deal(bob, 100 * 1e18);
+        deal(address(this), 100 * 1e18);
+
+        WETH9 weth = new WETH9();
+
+        oracleConfigurator.updateOracle(address(weth), address(oracleB));
+        stoneBeraVault.addUnderlyingAsset(address(weth));
+
+        DepositWrapper wrapper = new DepositWrapper(
+            address(weth),
+            address(stoneBeraVault)
+        );
+
+        vm.startPrank(alice);
+        wrapper.depositETH{value: 10 * 1e18}(alice);
+        assertEq(lpToken.balanceOf(alice), 10 * 1e18);
         vm.stopPrank();
     }
 }
