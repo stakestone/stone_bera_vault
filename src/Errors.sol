@@ -26,3 +26,5 @@ error NoClaimableRedeem();
 error InvalidRequest();
 
 error InvalidRequestToken();
+
+error CannotRemove();

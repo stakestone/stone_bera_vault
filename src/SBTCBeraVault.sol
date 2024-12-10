@@ -70,6 +70,8 @@ contract SBTCBeraVault is AccessControl {
     event SetDepositPause(address asset, bool flag);
     event AddUnderlyingAsset(address indexed asset);
     event RemoveUnderlyingAsset(address indexed asset);
+    event AddWithdrawToken(address indexed withdrawToken);
+    event RemoveWithdrawToken(address indexed withdrawToken);
     event AssetsWithdrawn(address indexed asset, uint256 amount);
     event AssetsRepaid(address indexed asset, uint256 amount);
 
@@ -381,6 +383,40 @@ contract SBTCBeraVault is AccessControl {
         isUnderlyingAsset[_asset] = false;
 
         emit RemoveUnderlyingAsset(_asset);
+    }
+
+    function addWithdrawToken(
+        address _withdrawToken
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (_withdrawToken == address(0) || isWithdrawToken[_withdrawToken])
+            revert InvalidAsset();
+
+        isWithdrawToken[_withdrawToken] = true;
+        withdrawTokens.push(_withdrawToken);
+
+        emit AddWithdrawToken(_withdrawToken);
+    }
+
+    function removeWithdrawToken(
+        address _withdrawToken
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (!isWithdrawToken[_withdrawToken]) revert InvalidAsset();
+        if (requestingSharesInRound[_withdrawToken] != 0) revert CannotRemove();
+
+        address[] memory assets = withdrawTokens;
+
+        uint256 length = assets.length;
+        uint256 i;
+        for (i; i < length; i++) {
+            if (assets[i] == _withdrawToken) {
+                withdrawTokens[i] = withdrawTokens[length - 1];
+                withdrawTokens.pop();
+                break;
+            }
+        }
+        isWithdrawToken[_withdrawToken] = false;
+
+        emit RemoveWithdrawToken(_withdrawToken);
     }
 
     function setDepositPause(
