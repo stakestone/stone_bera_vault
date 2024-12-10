@@ -8,7 +8,7 @@ interface IStoneVault {
     function currentSharePrice() external returns (uint256 price);
 }
 
-contract StoneOralce is Oracle {
+contract StoneOracle is Oracle {
     uint256 public constant D18 = 1e18;
 
     IStoneVault public immutable stoneVault;
