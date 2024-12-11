@@ -57,6 +57,17 @@ contract SBTCBeraVaultTest is Test {
         console.log("sBTCBeraVault Address: %s", address(sBTCBeraVault));
     }
     function test_addUnderlyingAsset() public {
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.addUnderlyingAsset(address(tokenC));
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.addUnderlyingAsset(address(tokenC));
+        vm.stopPrank();
+
         assertTrue(sBTCBeraVault.isUnderlyingAsset(address(tokenA)));
         assertTrue(sBTCBeraVault.isUnderlyingAsset(address(tokenB)));
         assertEq(sBTCBeraVault.underlyingAssets(0), address(tokenA));
@@ -79,6 +90,17 @@ contract SBTCBeraVaultTest is Test {
         assertEq(sBTCBeraVault.tokenDecimals(address(tokenC)), 6);
     }
     function test_addWithdrawToken() public {
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.addWithdrawToken(address(tokenC));
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.addWithdrawToken(address(tokenC));
+        vm.stopPrank();
+
         assertTrue(sBTCBeraVault.isWithdrawToken(address(tokenA)));
         assertTrue(!sBTCBeraVault.isWithdrawToken(address(tokenB)));
         assertTrue(sBTCBeraVault.isWithdrawToken(address(tokenC)));
@@ -97,6 +119,18 @@ contract SBTCBeraVaultTest is Test {
 
     function test_removeUnderlyingAsset() public {
         sBTCBeraVault.addUnderlyingAsset(address(tokenC));
+
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.removeUnderlyingAsset(address(tokenA));
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.removeUnderlyingAsset(address(tokenA));
+        vm.stopPrank();
+
         sBTCBeraVault.removeUnderlyingAsset(address(tokenA));
         assertTrue(!sBTCBeraVault.isUnderlyingAsset(address(tokenA)));
         assertTrue(sBTCBeraVault.isUnderlyingAsset(address(tokenB)));
@@ -113,6 +147,17 @@ contract SBTCBeraVaultTest is Test {
         sBTCBeraVault.removeUnderlyingAsset(address(tokenA));
     }
     function test_removeWithdrawToken() public {
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.removeWithdrawToken(address(tokenA));
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.removeWithdrawToken(address(tokenA));
+        vm.stopPrank();
+
         sBTCBeraVault.addWithdrawToken(address(tokenB));
         sBTCBeraVault.removeWithdrawToken(address(tokenA));
         assertTrue(!sBTCBeraVault.isWithdrawToken(address(tokenA)));
@@ -177,11 +222,26 @@ contract SBTCBeraVaultTest is Test {
     function test_roll_with_no_request() public {
         tokenA.approve(address(sBTCBeraVault), 1e18);
         sBTCBeraVault.deposit(address(tokenA), 1e18, msg.sender);
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.rollToNextRound();
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(
+            sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(),
+            address(user)
+        );
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.rollToNextRound();
+        vm.stopPrank();
         sBTCBeraVault.rollToNextRound();
         assertEq(lpToken.balanceOf(msg.sender), 1e18);
     }
 
     function test_cancelRequest() public {
+        vm.expectRevert(NoRequestingShares.selector);
+        sBTCBeraVault.cancelRequest();
         address alice = address(0xA11CE);
         tokenA.approve(address(sBTCBeraVault), 1e18);
 
@@ -215,15 +275,39 @@ contract SBTCBeraVaultTest is Test {
         address alice = address(0xA11CE);
 
         tokenA.approve(address(sBTCBeraVault), 1e18);
-
         sBTCBeraVault.deposit(address(tokenA), 1e18, alice);
         assertEq(lpToken.balanceOf(alice), 1e18);
         vm.expectRevert(InsufficientBalance.selector);
         sBTCBeraVault.withdrawAssets(address(tokenA), 2e18);
+        vm.expectRevert();
+        vm.startPrank(alice);
+        sBTCBeraVault.withdrawAssets(address(tokenA), 2e18);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(
+            sBTCBeraVault.VAULT_OPERATOR_ROLE(),
+            address(alice)
+        );
+        vm.expectRevert();
+        vm.startPrank(alice);
+        sBTCBeraVault.withdrawAssets(address(tokenA), 2e18);
+        vm.stopPrank();
         //manager withdraws A and repay B+C
         sBTCBeraVault.withdrawAssets(address(tokenA), 1e18);
         tokenB.approve(address(sBTCBeraVault), 1e8);
         tokenC.approve(address(sBTCBeraVault), 1e8);
+        vm.startPrank(alice);
+        vm.expectRevert();
+        sBTCBeraVault.repayAssets(address(tokenB), 5e7);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(
+            sBTCBeraVault.VAULT_OPERATOR_ROLE(),
+            address(alice)
+        );
+        vm.expectRevert();
+        vm.startPrank(alice);
+        sBTCBeraVault.repayAssets(address(tokenB), 5e7);
+        vm.stopPrank();
+
         sBTCBeraVault.repayAssets(address(tokenB), 5e7);
         vm.expectRevert(InvalidAsset.selector);
         sBTCBeraVault.repayAssets(address(tokenC), 5e5);
@@ -499,7 +583,6 @@ contract SBTCBeraVaultTest is Test {
     }
     function test_withdrawAssets_InsufficientBalance() public {
         address user = address(1);
-
         // Mint tokens for the user
         tokenA.mint(user, 4e18); // User: 4 tokenA
         tokenB.mint(user, 6e8); // User: 6 tokenB
@@ -567,6 +650,17 @@ contract SBTCBeraVaultTest is Test {
     // Test for Preview Deposit Capped Exception
     function test_previewDepositCappedException() public {
         tokenA.approve(address(sBTCBeraVault), 1000 * 1e18);
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.setDepositPause(address(tokenA), true);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.setDepositPause(address(tokenA), true);
+        vm.stopPrank();
+
         sBTCBeraVault.setDepositPause(address(tokenA), true);
         //test DepositPause
         vm.expectRevert(DepositPaused.selector);
@@ -607,6 +701,17 @@ contract SBTCBeraVaultTest is Test {
     // Test for Set Cap and Ensure it Works
     function test_setCap() public {
         uint256 newCap = 20000 * 1e18; // Set a new cap for the vault
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.setCap(newCap);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.setCap(newCap);
+        vm.stopPrank();
+
         sBTCBeraVault.setCap(newCap);
         uint256 updatedCap = sBTCBeraVault.cap();
         assertEq(updatedCap, newCap); // Assert that the new cap is correctly set
