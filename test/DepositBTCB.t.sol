@@ -48,29 +48,6 @@ contract AsyncVaultTest is Test {
 
         vm.stopPrank();
     }
-
-    function testDistributorClaim() public {
-        // Set up Merkle root for distribution
-        merkleRoot = keccak256(
-            abi.encodePacked(
-                keccak256(abi.encode(user, address(lpToken), 50 * 1e18))
-            )
-        );
-        asyncDistributor.setRoot(merkleRoot);
-
-        // User claims tokens
-        vm.startPrank(user);
-        bytes32[] memory proof = new bytes32[](1);
-        proof[0] = merkleRoot;
-
-        asyncDistributor.claim(proof, 50 * 1e18, 50 * 1e18);
-
-        assertEq(lpToken.balanceOf(user), 50 * 1e18);
-        assertEq(asyncDistributor.claimed(user), 50 * 1e18);
-
-        vm.stopPrank();
-    }
-
     function testPauseVault() public {
         asyncVault.setPause(true);
 
@@ -88,28 +65,30 @@ contract AsyncVaultTest is Test {
 
     function testCrossChainWorkflow() public {
         vm.startPrank(user);
-        // 用户存入 BTCB 到 AsyncVault (BNB Chain)
+        // 用户在 BNB Chain 上将 BTCB 存入 AsyncVault
         btcToken.approve(address(asyncVault), 20 * 1e18);
         asyncVault.deposit(20 * 1e18, user);
         assertEq(btcToken.balanceOf(address(asyncVault)), 20 * 1e18);
 
-        // 生成 Merkle Tree 根节点（root）
-        bytes32 leaf = keccak256(abi.encode(user, address(lpToken), 50 * 1e18));
-        bytes32[] memory proof = new bytes32[](1);
-        proof[0] = leaf;
-
-        bytes32 root = keccak256(abi.encodePacked(leaf)); // 计算 root
         vm.stopPrank();
-        asyncDistributor.setRoot(root);
-        vm.startPrank(user);
 
-        // 用户在 Ethereum 上领取 LP Token
+        // 在 Ethereum 上生成 Merkle Tree 根节点（root）
+        bytes32 leaf = keccak256(
+            abi.encode(user, address(lpToken), 50 * 1e18) // 用户应领取 50 LP Token
+        );
+        bytes32[] memory proof = new bytes32[](0); // 简单情况，无 sibling hash
+        bytes32 root = keccak256(abi.encodePacked(leaf));
+
+        vm.prank(owner);
+        asyncDistributor.setRoot(root);
+
+        // 用户在 Ethereum 上根据 Merkle Proof 领取 LP Token
+        vm.startPrank(user);
         asyncDistributor.claim(proof, 50 * 1e18, 50 * 1e18);
         assertEq(lpToken.balanceOf(user), 50 * 1e18);
 
         vm.stopPrank();
     }
-
     function testInvalidProof() public {
         merkleRoot = keccak256(
             abi.encodePacked(
@@ -129,23 +108,31 @@ contract AsyncVaultTest is Test {
     }
 
     function testDoubleClaim() public {
-        merkleRoot = keccak256(
-            abi.encodePacked(
-                keccak256(abi.encode(user, address(lpToken), 50 * 1e18))
-            )
-        );
-        asyncDistributor.setRoot(merkleRoot);
-
         vm.startPrank(user);
-        bytes32[] memory proof = new bytes32[](1);
-        proof[0] = merkleRoot;
+        // 用户在 BNB Chain 上将 BTCB 存入 AsyncVault
+        btcToken.approve(address(asyncVault), 20 * 1e18);
+        asyncVault.deposit(20 * 1e18, user);
+        assertEq(btcToken.balanceOf(address(asyncVault)), 20 * 1e18);
+
+        vm.stopPrank();
+
+        // 在 Ethereum 上生成 Merkle Tree 根节点（root）
+        bytes32 leaf = keccak256(
+            abi.encode(user, address(lpToken), 50 * 1e18) // 用户应领取 50 LP Token
+        );
+        bytes32[] memory proof = new bytes32[](0); // 简单情况，无 sibling hash
+        bytes32 root = keccak256(abi.encodePacked(leaf));
+
+        vm.prank(owner);
+        asyncDistributor.setRoot(root);
+
+        // 用户在 Ethereum 上根据 Merkle Proof 领取 LP Token
+        vm.startPrank(user);
 
         asyncDistributor.claim(proof, 50 * 1e18, 30 * 1e18);
         asyncDistributor.claim(proof, 50 * 1e18, 20 * 1e18);
-
         assertEq(lpToken.balanceOf(user), 50 * 1e18);
         assertEq(asyncDistributor.claimed(user), 50 * 1e18);
-
         vm.expectRevert("Exceed amount");
         asyncDistributor.claim(proof, 50 * 1e18, 10 * 1e18);
 
