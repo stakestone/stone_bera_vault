@@ -7,6 +7,16 @@ import "../src/StoneBeraVault.sol";
 import "./MockToken.sol";
 import "./MockOracle.sol";
 
+address constant user = address(1);
+address constant user2 = address(2);
+address constant operator = address(3);
+address constant assetManager = address(4);
+uint256 constant CAP = 10000 * 1e18;
+uint256 constant mintAmout = 10000 * 1e18;
+uint256 constant depositAmount = 1000 * 1e18;
+uint256 constant withdrawTokenPrice = 0.8 * 1e18;
+uint256 constant underlyingTokenPrice = 2.5 * 1e18;
+
 contract StoneBeraVaultTest is Test {
     StoneBeraVault public vault;
     Token public lpToken;
@@ -17,12 +27,6 @@ contract StoneBeraVaultTest is Test {
     MockOracle public oracle1;
     MockOracle public oracleW;
     OracleConfigurator public oracleConfigurator;
-
-    address public user = address(1);
-    address public operator = address(3);
-    address public assetManager = address(4);
-
-    uint256 public constant CAP = 10000 * 1e18;
 
     function setUp() public {
         lpToken = new Token("LP Token", "LPT");
@@ -157,7 +161,6 @@ contract StoneBeraVaultTest is Test {
     }
 
     function testRedeem_managerBorrowToken_repayToken() public {
-        uint256 depositAmount = 1000 * 1e18;
         //     // 添加 underlying asset
         vm.startPrank(operator);
         vault.addUnderlyingAsset(address(underlyingToken));
@@ -186,7 +189,6 @@ contract StoneBeraVaultTest is Test {
         uint256 actualRate = vault.getRate();
         assertEq(actualRate, expectedRate, "Rate after deposit is incorrect");
         //change withdrawTokenPrice
-        uint256 withdrawTokenPrice = 0.8 * 1e18;
         oracleW.updatePrice(withdrawTokenPrice);
         // 进入下一轮，用户可以 claim
         vm.expectRevert(InsufficientBalance.selector);
@@ -328,25 +330,18 @@ contract StoneBeraVaultTest is Test {
             lpToken.approve(address(vault), type(uint256).max);
             vault.requestRedeem(sharesToRedeem);
             vm.startPrank(operator);
-            // 进入下一轮
             vault.rollToNextRound();
             vm.startPrank(user);
-            // claim 赎回
             vault.claimRedeemRequest();
         }
     }
 
     //用户多轮申请取款 测试requestingSharesInPast
     function testRedeem_multipleDepsosit_multipleRequestClaim() public {
-        uint256 mintAmout = 10000 * 1e18;
-        uint256 depositAmount = 1000 * 1e18;
-        address user2 = address(2);
-        //     // 添加 underlying asset
         vm.startPrank(operator);
         vault.addUnderlyingAsset(address(underlyingToken));
         vault.addUnderlyingAsset(address(withdrawToken));
 
-        // 设置初始价格
         oracle.updatePrice(1 * 1e18);
         oracleW.updatePrice(1 * 1e18);
         vm.startPrank(user);
@@ -362,9 +357,7 @@ contract StoneBeraVaultTest is Test {
         vm.startPrank(operator);
         vault.rollToNextRound();
         //change Price
-        uint256 withdrawTokenPrice = 0.8 * 1e18;
         oracleW.updatePrice(withdrawTokenPrice);
-        uint256 underlyingTokenPrice = 2.5 * 1e18;
         oracle1.updatePrice(underlyingTokenPrice);
 
         vm.startPrank(user2);
@@ -401,9 +394,8 @@ contract StoneBeraVaultTest is Test {
         console.log("rate...");
         console.logUint(rate);
 
-        uint256 totalValue = depositAmount * 3;
-        uint256 totalSupply = lpToken.totalSupply();
-        uint256 expectedRate = (totalValue / totalSupply) * 1e18;
+        uint256 expectedRate = ((depositAmount * 3) / lpToken.totalSupply()) *
+            1e18;
         uint256 actualRate = vault.getRate();
         assertEq(actualRate, expectedRate, "Rate after deposit is incorrect");
         // calc the repay amount
@@ -444,11 +436,12 @@ contract StoneBeraVaultTest is Test {
         vm.expectRevert(NoClaimableRedeem.selector);
         vault.claimRedeemRequest();
 
-        totalValue =
-            (underlyingTokenPrice * depositAmount * 3) -
-            (claimed * withdrawTokenPrice);
-        totalSupply = lpToken.totalSupply();
-        uint256 latestRate = (totalValue / totalSupply) * 1e18;
+        // totalValue =
+        //     (underlyingTokenPrice * depositAmount * 3) -
+        //     (claimed * withdrawTokenPrice);
+        // totalSupply = lpToken.totalSupply();
+        uint256 latestRate = (((underlyingTokenPrice * depositAmount * 3) -
+            (claimed * withdrawTokenPrice)) / (lpToken.totalSupply())) * 1e18;
         vm.startPrank(assetManager);
         borrowAmt = underlyingToken.balanceOf(address(vault));
         vault.withdrawAssets(address(underlyingToken), borrowAmt);
@@ -521,7 +514,6 @@ contract StoneBeraVaultTest is Test {
         vm.startPrank(operator);
         vault.rollToNextRound();
         vm.startPrank(user);
-
         uint256 claimable = vault.claimableRedeemRequest();
         uint256 expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
         assertEq(
@@ -542,6 +534,7 @@ contract StoneBeraVaultTest is Test {
         // Move to Round 3
         vm.startPrank(operator);
         vault.rollToNextRound();
+        vm.startPrank(user);
         claimable = vault.claimableRedeemRequest();
         expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
         assertEq(
@@ -549,7 +542,6 @@ contract StoneBeraVaultTest is Test {
             expectedClaimable,
             "Claimable amount in round 2 is incorrect"
         );
-        vm.startPrank(user);
         uint256 userBalanceBefore = withdrawToken.balanceOf(user);
         vault.claimRedeemRequest();
         uint256 userBalanceAfter = withdrawToken.balanceOf(user);
