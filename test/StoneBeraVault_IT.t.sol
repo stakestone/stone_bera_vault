@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.26;
 import {Token} from "../src/Token.sol";
 import {OracleConfigurator} from "../src/oracle/OracleConfigurator.sol";
 import "forge-std/Test.sol";
@@ -473,6 +473,91 @@ contract StoneBeraVaultTest is Test {
             claimed + newClaim,
             withdrawToken.balanceOf(user2),
             "claimRedeemRequest success"
+        );
+    }
+      function test_multipleRoundsRedeemDifferentTokens() public {
+        vm.startPrank(operator);
+        oracle.updatePrice(1 * 1e18); // price = 1e18
+        oracle1.updatePrice(1 * 1e18);
+        oracleW.updatePrice(1 * 1e18);
+        vault.addUnderlyingAsset(address(underlyingToken));
+        vault.addUnderlyingAsset(address(underlyingToken1));
+        vault.addUnderlyingAsset(address(withdrawToken));
+
+        vm.startPrank(user);
+        underlyingToken.mint(user, 100 * 1e18);
+        underlyingToken1.mint(user, 100 * 1e8);
+
+        underlyingToken.approve(address(vault), 5e18);
+        underlyingToken1.approve(address(vault), 5e8);
+
+        vault.deposit(address(underlyingToken), 5e18, user);
+        vault.deposit(address(underlyingToken1), 5e8, user);
+
+        // Round 1
+        lpToken.approve(address(vault), 5e18);
+        vault.requestRedeem(1e18); // User requests 2e4 shares
+        vm.stopPrank();
+
+        vm.startPrank(assetManager);
+        vault.withdrawAssets(
+            address(underlyingToken),
+            underlyingToken.balanceOf(address(vault))
+        );
+        vault.withdrawAssets(
+            address(underlyingToken1),
+            underlyingToken1.balanceOf(address(vault))
+        );
+        withdrawToken.approve(address(vault), type(uint256).max);
+
+        // Repay assets based on expected amount
+        uint256 rate = vault.getRate(); // Assume this returns 1e18
+        uint256 price = oracleConfigurator.getPrice(address(withdrawToken)); // Assume this returns 1e18
+        uint256 requestingShares = 1e18; // User's request
+        uint256 withdrawTokenAmount = (requestingShares * rate) / price; // Calculate amount
+        vault.repayAssets(address(withdrawToken), withdrawTokenAmount);
+
+        // Move to Round 2
+        vm.startPrank(operator);
+        vault.rollToNextRound();
+        vm.startPrank(user);
+
+        uint256 claimable = vault.claimableRedeemRequest();
+        uint256 expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
+        assertEq(
+            claimable,
+            expectedClaimable,
+            "Claimable amount in round 1 is incorrect"
+        );
+        lpToken.approve(address(vault), 5e18);
+        vault.requestRedeem(2e18); // User requests 2e4 shares
+        vm.stopPrank();
+        // Repay assets based on expected amount
+        rate = vault.getRate(); // Assume this returns 1e18
+        price = oracleConfigurator.getPrice(address(withdrawToken)); // Assume this returns 1e18
+        requestingShares = 2e18; // User's request
+        withdrawTokenAmount = (requestingShares * rate) / price; // Calculate amount
+        vm.startPrank(assetManager);
+        vault.repayAssets(address(withdrawToken), withdrawTokenAmount);
+        // Move to Round 3
+        vm.startPrank(operator);
+        vault.rollToNextRound();
+        vault.requestingShares()
+        claimable = vault.claimableRedeemRequest();
+        expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
+        assertEq(
+            claimable,
+            expectedClaimable,
+            "Claimable amount in round 2 is incorrect"
+        );
+        vm.startPrank(user);
+        uint256 userBalanceBefore = withdrawToken.balanceOf(user);
+        vault.claimRedeemRequest();
+        uint256 userBalanceAfter = withdrawToken.balanceOf(user);
+        assertEq(
+            userBalanceAfter - userBalanceBefore,
+            expectedClaimable,
+            "Incorrect redeem amount paid in round 1"
         );
     }
 }
