@@ -716,4 +716,44 @@ contract SBTCBeraVaultTest is Test {
         uint256 updatedCap = sBTCBeraVault.cap();
         assertEq(updatedCap, newCap); // Assert that the new cap is correctly set
     }
+    function testCancelAndSubmitNewRedeemRequest() public {
+        uint256 depositAmount = 1e18; // 1 tokenA
+        uint256 redeemShares = 1e18; // 1 share
+        uint256 newRedeemShares = 5e17; // 0.5 share
+
+        // Deposit tokenA to get shares
+        tokenA.approve(address(sBTCBeraVault), depositAmount);
+        sBTCBeraVault.deposit(address(tokenA), depositAmount, address(this));
+
+        // Submit a redeem request for tokenA
+        lpToken.approve(address(sBTCBeraVault), redeemShares);
+        sBTCBeraVault.requestRedeem(address(tokenA), redeemShares);
+
+        // Verify initial redeem request state
+        (address requestToken, uint256 shares) = sBTCBeraVault
+            .pendingRedeemRequest();
+        assertEq(
+            requestToken,
+            address(tokenA),
+            "Initial request token mismatch"
+        );
+        assertEq(shares, redeemShares, "Initial request shares mismatch");
+
+        // Cancel the redeem request
+        sBTCBeraVault.cancelRequest();
+
+        // Verify cancel request state
+        (requestToken, shares) = sBTCBeraVault.pendingRedeemRequest();
+        assertEq(requestToken, address(0), "Request token should be cleared");
+        assertEq(shares, 0, "Request shares should be cleared");
+
+        // Submit a new redeem request for tokenC
+        lpToken.approve(address(sBTCBeraVault), newRedeemShares);
+        sBTCBeraVault.requestRedeem(address(tokenC), newRedeemShares);
+
+        // Verify new redeem request state
+        (requestToken, shares) = sBTCBeraVault.pendingRedeemRequest();
+        assertEq(requestToken, address(tokenC), "New request token mismatch");
+        assertEq(shares, newRedeemShares, "New request shares mismatch");
+    }
 }
