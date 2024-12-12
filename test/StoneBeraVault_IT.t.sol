@@ -475,7 +475,7 @@ contract StoneBeraVaultTest is Test {
             "claimRedeemRequest success"
         );
     }
-      function test_multipleRoundsRedeemDifferentTokens() public {
+    function test_multipleRoundsRedeemDifferentTokens() public {
         vm.startPrank(operator);
         oracle.updatePrice(1 * 1e18); // price = 1e18
         oracle1.updatePrice(1 * 1e18);
@@ -542,7 +542,6 @@ contract StoneBeraVaultTest is Test {
         // Move to Round 3
         vm.startPrank(operator);
         vault.rollToNextRound();
-        vault.requestingShares()
         claimable = vault.claimableRedeemRequest();
         expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
         assertEq(
