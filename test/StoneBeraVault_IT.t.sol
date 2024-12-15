@@ -588,8 +588,8 @@ contract StoneBeraVaultTest is Test {
         withdrawToken.approve(address(vault), type(uint256).max);
 
         // Repay assets based on expected amount
-        uint256 rate = vault.getRate(); // Assume this returns 1e18
-        uint256 price = oracleConfigurator.getPrice(address(withdrawToken)); // Assume this returns 1e18
+        uint256 rate = vault.getRate();
+        uint256 price = oracleConfigurator.getPrice(address(withdrawToken));
         uint256 requestingShares = 1; // User's request
         uint256 withdrawTokenAmount = (requestingShares * rate) / price; // Calculate amount
         vault.repayAssets(address(withdrawToken), withdrawTokenAmount);
@@ -597,9 +597,16 @@ contract StoneBeraVaultTest is Test {
         // Move to Round 2
         vm.startPrank(operator);
         oracleW.updatePrice(1 * 1e19); //make withdrawShare*1e18/WithdrawTokenPrice < 1
+        price = oracleConfigurator.getPrice(address(withdrawToken));
+        console.log("price is :");
+        console.logUint(price);
         vault.rollToNextRound();
         vm.startPrank(user);
-        uint256 claimable = vault.claimableRedeemRequest(); //it will return wrong value
+        uint256 claimable = vault.claimableRedeemRequest();
+        rate = vault.getRate();
+        console.log("rate is :");
+        console.logUint(rate);
+
         uint256 expectedClaimable = (requestingShares * rate) / price; // Dynamically calculate
         assertEq(
             claimable,
