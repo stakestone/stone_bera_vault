@@ -187,11 +187,20 @@ contract StoneBeraVault is AccessControl {
     }
 
     function claimRedeemRequest() public {
-        uint256 claimable = claimableRedeemRequest();
-        if (claimable == 0) revert NoClaimableRedeem();
-
         RedeemRequest storage redeemRequest = redeemRequests[msg.sender];
         uint256 requestShares = redeemRequest.requestShares;
+
+        uint256 claimable;
+        uint256 round = redeemRequest.requestRound;
+        if (round < latestRoundID && redeemRequest.requestShares != 0) {
+            claimable = redeemRequest.requestShares.mulDiv(
+                roundPricePerShare[round],
+                withdrawTokenPrice[round],
+                Math.Rounding.Floor
+            );
+        } else {
+            revert NoClaimableRedeem();
+        }
 
         lpToken.burn(address(this), requestShares);
 
@@ -200,11 +209,12 @@ contract StoneBeraVault is AccessControl {
         redeemableAmountInPast -= claimable;
         requestingSharesInPast -= requestShares;
 
-        TransferHelper.safeTransfer(
-            address(withdrawToken),
-            msg.sender,
-            claimable
-        );
+        if (claimable > 0)
+            TransferHelper.safeTransfer(
+                address(withdrawToken),
+                msg.sender,
+                claimable
+            );
 
         emit RedeemClaimed(msg.sender, claimable);
     }
@@ -218,7 +228,7 @@ contract StoneBeraVault is AccessControl {
                 : 0;
     }
 
-    function claimableRedeemRequest() public view returns (uint256 assets) {
+    function claimableRedeemRequest() external view returns (uint256 assets) {
         RedeemRequest memory redeemRequest = redeemRequests[msg.sender];
 
         uint256 round = redeemRequest.requestRound;
