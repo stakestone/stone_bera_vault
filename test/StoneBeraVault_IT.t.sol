@@ -590,7 +590,7 @@ contract StoneBeraVaultTest is Test {
         // Repay assets based on expected amount
         uint256 rate = vault.getRate(); // Assume this returns 1e18
         uint256 price = oracleConfigurator.getPrice(address(withdrawToken)); // Assume this returns 1e18
-        uint256 requestingShares = 1e18; // User's request
+        uint256 requestingShares = 1; // User's request
         uint256 withdrawTokenAmount = (requestingShares * rate) / price; // Calculate amount
         vault.repayAssets(address(withdrawToken), withdrawTokenAmount);
 
