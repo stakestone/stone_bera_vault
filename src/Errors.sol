@@ -32,3 +32,7 @@ error InvalidRequestToken();
 error CannotRemove();
 
 error InvalidDecimals();
+
+error InvalidFeeRate();
+
+error NoFeeRecipient();
