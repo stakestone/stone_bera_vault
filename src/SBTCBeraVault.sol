@@ -194,11 +194,19 @@ contract SBTCBeraVault is AccessControl {
     }
 
     function claimRedeemRequest() public {
-        (address requestToken, uint256 claimable) = claimableRedeemRequest();
-        if (claimable == 0) revert NoClaimableRedeem();
-
         RedeemRequest storage redeemRequest = redeemRequests[msg.sender];
+
+        address requestToken = redeemRequest.requestToken;
         uint256 requestShares = redeemRequest.requestShares;
+        uint256 round = redeemRequest.requestRound;
+        uint256 shares = redeemRequest.requestShares;
+        uint256 claimable;
+        if (round < latestRoundID && shares != 0) {
+            uint8 decimals = tokenDecimals[requestToken];
+            claimable = shares / (10 ** (18 - decimals));
+        } else {
+            revert NoClaimableRedeem();
+        }
 
         lpToken.burn(address(this), requestShares);
 
@@ -208,7 +216,9 @@ contract SBTCBeraVault is AccessControl {
         redeemableAmountInPast[requestToken] -= claimable;
         requestingSharesInPast -= requestShares;
 
-        TransferHelper.safeTransfer(requestToken, msg.sender, claimable);
+        if (claimable != 0) {
+            TransferHelper.safeTransfer(requestToken, msg.sender, claimable);
+        }
 
         emit RedeemClaimed(msg.sender, requestToken, claimable);
     }
@@ -227,7 +237,7 @@ contract SBTCBeraVault is AccessControl {
     }
 
     function claimableRedeemRequest()
-        public
+        external
         view
         returns (address requestToken, uint256 assets)
     {
