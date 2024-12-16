@@ -8,7 +8,7 @@ interface IStoneVault {
     function currentSharePrice() external returns (uint256 price);
 }
 
-contract StoneOralce is Oracle {
+contract StoneOracle is Oracle {
     uint256 public constant D18 = 1e18;
 
     IStoneVault public immutable stoneVault;
@@ -20,7 +20,10 @@ contract StoneOralce is Oracle {
         string memory _name,
         address _stoneVault
     ) Oracle(_token, _name) {
-        require(_token != address(0), "Invalid Address");
+        require(
+            _token != address(0) && _stoneVault != address(0),
+            "ZERO ADDRESS"
+        );
 
         token = _token;
         name = _name;

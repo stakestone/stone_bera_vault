@@ -20,6 +20,7 @@ contract StoneBeraVault is AccessControl {
         keccak256("ASSETS_MANAGEMENT_ROLE");
 
     uint256 public constant D18 = 1e18;
+    uint256 public constant D6 = 1e6;
 
     Token public immutable lpToken;
     ERC20 public immutable withdrawToken;
@@ -34,6 +35,8 @@ contract StoneBeraVault is AccessControl {
     mapping(uint256 => uint256) public withdrawTokenPrice;
     mapping(address => bool) public depositPaused;
 
+    mapping(address => uint256) public feeRate;
+
     uint256 public latestRoundID;
     uint256 public cap;
     uint256 public assetsBorrowed;
@@ -41,6 +44,8 @@ contract StoneBeraVault is AccessControl {
     uint256 public redeemableAmountInPast; // calculated as withdrawToken
     uint256 public requestingSharesInPast; // calculated as share
     uint256 public requestingSharesInRound; // calculated as share
+
+    address public feeRecipient;
 
     struct RedeemRequest {
         uint256 requestRound;
@@ -64,8 +69,11 @@ contract StoneBeraVault is AccessControl {
         uint256 sharePrice,
         uint256 withdrawTokenPrice
     );
+    event FeeCharged(address recipient, uint256 fee);
     event SetCap(uint256 oldValue, uint256 newValue);
-    event SetDepositPause(address asset, bool flag);
+    event SetDepositPause(address indexed asset, bool flag);
+    event SetFeeRate(address indexed asset, uint256 feeRate);
+    event SetFeeRecipient(address oldValue, address newValue);
     event AddUnderlyingAsset(address indexed asset);
     event RemoveUnderlyingAsset(address indexed asset);
     event AssetsWithdrawn(address indexed asset, uint256 amount, uint256 value);
@@ -77,6 +85,12 @@ contract StoneBeraVault is AccessControl {
         address _oracleConfigurator,
         uint256 _cap
     ) {
+        if (
+            _lpToken == address(0) ||
+            _withdrawToken == address(0) ||
+            _oracleConfigurator == address(0)
+        ) revert ZeroAddress();
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         lpToken = Token(_lpToken);
@@ -107,7 +121,21 @@ contract StoneBeraVault is AccessControl {
             _amount
         );
 
-        lpToken.mint(_receiver, shares);
+        uint256 fee;
+        uint256 rate = feeRate[_asset];
+        if (rate != 0) {
+            fee = shares.mulDiv(rate, D6);
+        }
+
+        if (fee == 0) {
+            lpToken.mint(_receiver, shares);
+        } else {
+            shares -= fee;
+            lpToken.mint(_receiver, shares);
+            lpToken.mint(feeRecipient, fee);
+
+            emit FeeCharged(feeRecipient, fee);
+        }
 
         emit Deposit(msg.sender, _receiver, _asset, _amount, shares);
     }
@@ -130,7 +158,21 @@ contract StoneBeraVault is AccessControl {
             assets
         );
 
-        lpToken.mint(_receiver, _shares);
+        uint256 fee;
+        uint256 rate = feeRate[_asset];
+        if (rate != 0) {
+            fee = _shares.mulDiv(rate, D6);
+        }
+
+        if (fee == 0) {
+            lpToken.mint(_receiver, _shares);
+        } else {
+            _shares -= fee;
+            lpToken.mint(_receiver, _shares);
+            lpToken.mint(feeRecipient, fee);
+
+            emit FeeCharged(feeRecipient, fee);
+        }
 
         emit Deposit(msg.sender, _receiver, _asset, assets, _shares);
     }
@@ -187,11 +229,20 @@ contract StoneBeraVault is AccessControl {
     }
 
     function claimRedeemRequest() public {
-        uint256 claimable = claimableRedeemRequest();
-        if (claimable == 0) revert NoClaimableRedeem();
-
         RedeemRequest storage redeemRequest = redeemRequests[msg.sender];
         uint256 requestShares = redeemRequest.requestShares;
+
+        uint256 claimable;
+        uint256 round = redeemRequest.requestRound;
+        if (round < latestRoundID && redeemRequest.requestShares != 0) {
+            claimable = redeemRequest.requestShares.mulDiv(
+                roundPricePerShare[round],
+                withdrawTokenPrice[round],
+                Math.Rounding.Floor
+            );
+        } else {
+            revert NoClaimableRedeem();
+        }
 
         lpToken.burn(address(this), requestShares);
 
@@ -200,11 +251,12 @@ contract StoneBeraVault is AccessControl {
         redeemableAmountInPast -= claimable;
         requestingSharesInPast -= requestShares;
 
-        TransferHelper.safeTransfer(
-            address(withdrawToken),
-            msg.sender,
-            claimable
-        );
+        if (claimable > 0)
+            TransferHelper.safeTransfer(
+                address(withdrawToken),
+                msg.sender,
+                claimable
+            );
 
         emit RedeemClaimed(msg.sender, claimable);
     }
@@ -218,7 +270,7 @@ contract StoneBeraVault is AccessControl {
                 : 0;
     }
 
-    function claimableRedeemRequest() public view returns (uint256 assets) {
+    function claimableRedeemRequest() external view returns (uint256 assets) {
         RedeemRequest memory redeemRequest = redeemRequests[msg.sender];
 
         uint256 round = redeemRequest.requestRound;
@@ -469,5 +521,27 @@ contract StoneBeraVault is AccessControl {
     ) external onlyRole(VAULT_OPERATOR_ROLE) {
         depositPaused[_token] = _pause;
         emit SetDepositPause(_token, _pause);
+    }
+
+    function setFeeRate(
+        address _token,
+        uint256 _feeRate
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (feeRecipient == address(0)) revert NoFeeRecipient();
+        if (!isUnderlyingAssets[_token]) revert InvalidAsset();
+        if (_feeRate > D6) revert InvalidFeeRate();
+
+        feeRate[_token] = _feeRate;
+
+        emit SetFeeRate(_token, _feeRate);
+    }
+
+    function setFeeRecipient(
+        address _feeRecipient
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (_feeRecipient == address(0)) revert ZeroAddress();
+
+        emit SetFeeRecipient(feeRecipient, _feeRecipient);
+        feeRecipient = _feeRecipient;
     }
 }

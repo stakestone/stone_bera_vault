@@ -25,6 +25,8 @@ contract DepositWrapper {
     address public immutable token;
 
     constructor(address _weth, address _vault) {
+        require(_weth != address(0) && _vault != address(0), "ZERO ADDRESS");
+
         weth = _weth;
         vault = _vault;
         token = IStoneBeraVault(vault).lpToken();
