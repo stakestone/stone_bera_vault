@@ -77,6 +77,12 @@ contract StoneBeraVault is AccessControl {
         address _oracleConfigurator,
         uint256 _cap
     ) {
+        if (
+            _lpToken == address(0) ||
+            _withdrawToken == address(0) ||
+            _oracleConfigurator == address(0)
+        ) revert ZeroAddress();
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         lpToken = Token(_lpToken);

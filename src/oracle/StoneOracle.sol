@@ -20,7 +20,10 @@ contract StoneOracle is Oracle {
         string memory _name,
         address _stoneVault
     ) Oracle(_token, _name) {
-        require(_token != address(0), "Invalid Address");
+        require(
+            _token != address(0) && _stoneVault != address(0),
+            "ZERO ADDRESS"
+        );
 
         token = _token;
         name = _name;

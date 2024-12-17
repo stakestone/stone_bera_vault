@@ -22,3 +22,5 @@ error ZeroShares();
 error NoRequestingShares();
 
 error NoClaimableRedeem();
+
+error ZeroAddress();
