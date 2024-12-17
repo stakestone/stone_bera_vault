@@ -23,6 +23,8 @@ error NoRequestingShares();
 
 error NoClaimableRedeem();
 
+error ZeroAddress();
+
 error InvalidRequest();
 
 error InvalidRequestToken();
@@ -30,3 +32,7 @@ error InvalidRequestToken();
 error CannotRemove();
 
 error InvalidDecimals();
+
+error InvalidFeeRate();
+
+error NoFeeRecipient();
