@@ -15,6 +15,7 @@ contract SBTCBeraVault is AccessControl {
         keccak256("ASSETS_MANAGEMENT_ROLE");
 
     uint256 public constant D18 = 1e18;
+    uint256 public constant D6 = 1e6;
 
     Token public immutable lpToken;
 
@@ -34,6 +35,9 @@ contract SBTCBeraVault is AccessControl {
     uint256 public requestingSharesInPast;
     mapping(address => uint256) public requestingSharesInRound;
     mapping(address => uint256) public redeemableAmountInPast;
+
+    mapping(address => uint256) public feeRate;
+    address public feeRecipient;
 
     struct RedeemRequest {
         uint256 requestRound;
@@ -66,8 +70,11 @@ contract SBTCBeraVault is AccessControl {
         uint256 amount
     );
     event RollToNextRound(uint256 round, uint256 share);
+    event FeeCharged(address recipient, uint256 fee);
+    event SetFeeRate(address indexed asset, uint256 feeRate);
+    event SetFeeRecipient(address oldValue, address newValue);
     event SetCap(uint256 oldValue, uint256 newValue);
-    event SetDepositPause(address asset, bool flag);
+    event SetDepositPause(address indexed asset, bool flag);
     event AddUnderlyingAsset(address indexed asset);
     event RemoveUnderlyingAsset(address indexed asset);
     event AddWithdrawToken(address indexed withdrawToken);
@@ -99,7 +106,19 @@ contract SBTCBeraVault is AccessControl {
             _amount
         );
 
-        lpToken.mint(_receiver, shares);
+        uint256 fee;
+        uint256 rate = feeRate[_asset];
+        if (rate != 0) {
+            fee = (shares * rate) / D6;
+        }
+        if (fee == 0) {
+            lpToken.mint(_receiver, shares);
+        } else {
+            shares -= fee;
+            lpToken.mint(_receiver, shares);
+            lpToken.mint(feeRecipient, fee);
+            emit FeeCharged(feeRecipient, fee);
+        }
 
         emit Deposit(msg.sender, _receiver, _asset, _amount, shares);
     }
@@ -121,7 +140,19 @@ contract SBTCBeraVault is AccessControl {
             assets
         );
 
-        lpToken.mint(_receiver, _shares);
+        uint256 fee;
+        uint256 rate = feeRate[_asset];
+        if (rate != 0) {
+            fee = (_shares * rate) / D6;
+        }
+        if (fee == 0) {
+            lpToken.mint(_receiver, _shares);
+        } else {
+            _shares -= fee;
+            lpToken.mint(_receiver, _shares);
+            lpToken.mint(feeRecipient, fee);
+            emit FeeCharged(feeRecipient, fee);
+        }
 
         emit Deposit(msg.sender, _receiver, _asset, assets, _shares);
     }
@@ -440,5 +471,23 @@ contract SBTCBeraVault is AccessControl {
     ) external onlyRole(VAULT_OPERATOR_ROLE) {
         depositPaused[_token] = _pause;
         emit SetDepositPause(_token, _pause);
+    }
+
+    function setFeeRate(
+        address _token,
+        uint256 _feeRate
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (feeRecipient == address(0)) revert NoFeeRecipient();
+        if (!isUnderlyingAsset[_token]) revert InvalidAsset();
+        if (_feeRate > D6) revert InvalidFeeRate();
+        feeRate[_token] = _feeRate;
+        emit SetFeeRate(_token, _feeRate);
+    }
+    function setFeeRecipient(
+        address _feeRecipient
+    ) external onlyRole(VAULT_OPERATOR_ROLE) {
+        if (_feeRecipient == address(0)) revert ZeroAddress();
+        emit SetFeeRecipient(feeRecipient, _feeRecipient);
+        feeRecipient = _feeRecipient;
     }
 }
