@@ -756,4 +756,59 @@ contract SBTCBeraVaultTest is Test {
         assertEq(requestToken, address(tokenC), "New request token mismatch");
         assertEq(shares, newRedeemShares, "New request shares mismatch");
     }
+    function test_multipleRoundsRedeem() public {
+        sBTCBeraVault.addUnderlyingAsset(address(tokenC));
+
+        tokenA.approve(address(sBTCBeraVault), 5e18);
+        tokenB.approve(address(sBTCBeraVault), 5e8);
+
+        sBTCBeraVault.deposit(address(tokenA), 5e18, address(this));
+        sBTCBeraVault.deposit(address(tokenB), 5e8, address(this));
+
+        // Round 1
+        lpToken.approve(address(sBTCBeraVault), 50e18);
+        sBTCBeraVault.requestRedeem(address(tokenC), 1e4);
+        uint256 withdrawTokenAmount = tokenA.balanceOf(address(sBTCBeraVault));
+        sBTCBeraVault.withdrawAssets(address(tokenA), withdrawTokenAmount);
+        // Repay assets based on expected amount
+        tokenC.approve(address(sBTCBeraVault), type(uint256).max);
+        sBTCBeraVault.repayAssets(address(tokenC), 1e6);
+
+        // Move to Round 2
+        sBTCBeraVault.rollToNextRound();
+        address requestToken;
+        uint256 claimable;
+        (requestToken, claimable) = sBTCBeraVault.claimableRedeemRequest();
+        uint256 expectedClaimable = (uint256(1e4) * uint256(10 ** 6)) /
+            uint256(10 ** 18);
+        assertEq(
+            claimable,
+            expectedClaimable,
+            "Claimable amount in round 1 is incorrect"
+        );
+        sBTCBeraVault.requestRedeem(address(tokenC), 2e18); // address(this) requests 2e4 shares
+        // Repay assets based on expected amount
+        sBTCBeraVault.repayAssets(address(tokenC), 2e6);
+        // Move to Round 3
+        sBTCBeraVault.rollToNextRound();
+
+        (requestToken, claimable) = sBTCBeraVault.claimableRedeemRequest();
+        expectedClaimable =
+            (uint256(2e18) * uint256(10 ** 6)) /
+            uint256(10 ** 18);
+        assertEq(
+            claimable,
+            expectedClaimable,
+            "Claimable amount in round 2 is incorrect"
+        );
+
+        uint256 BalanceBefore = tokenC.balanceOf(address(this));
+        sBTCBeraVault.claimRedeemRequest();
+        uint256 BalanceAfter = tokenC.balanceOf(address(this));
+        assertEq(
+            BalanceAfter - BalanceBefore,
+            expectedClaimable,
+            "Incorrect redeem amount paid in round 1"
+        );
+    }
 }
