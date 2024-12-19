@@ -322,6 +322,14 @@ contract SBTCBeraVault is AccessControl {
         return underlyingAssets;
     }
 
+    function getWithdrawTokens()
+        external
+        view
+        returns (address[] memory tokens)
+    {
+        return withdrawTokens;
+    }
+
     function rollToNextRound() external onlyRole(VAULT_OPERATOR_ROLE) {
         address[] memory tokens = withdrawTokens;
 
