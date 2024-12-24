@@ -434,7 +434,6 @@ contract SBTCBeraVault is AccessControl {
             }
         }
         isUnderlyingAsset[_asset] = false;
-        delete tokenDecimals[_asset];
 
         emit RemoveUnderlyingAsset(_asset);
     }
