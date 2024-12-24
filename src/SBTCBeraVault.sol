@@ -87,6 +87,8 @@ contract SBTCBeraVault is AccessControl {
 
         lpToken = Token(_lpToken);
         cap = _cap;
+
+        emit SetCap(0, _cap);
     }
 
     function deposit(
