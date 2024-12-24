@@ -231,11 +231,10 @@ contract SBTCBeraVault is AccessControl {
         address requestToken = redeemRequest.requestToken;
         uint256 requestShares = redeemRequest.requestShares;
         uint256 round = redeemRequest.requestRound;
-        uint256 shares = redeemRequest.requestShares;
         uint256 claimable;
-        if (round < latestRoundID && shares != 0) {
+        if (round < latestRoundID && requestShares != 0) {
             uint8 decimals = tokenDecimals[requestToken];
-            claimable = shares / (10 ** (18 - decimals));
+            claimable = requestShares / (10 ** (18 - decimals));
         } else {
             revert NoClaimableRedeem();
         }
