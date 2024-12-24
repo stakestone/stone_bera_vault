@@ -83,6 +83,8 @@ contract SBTCBeraVault is AccessControl {
     event AssetsRepaid(address indexed asset, uint256 amount);
 
     constructor(address _lpToken, uint256 _cap) {
+        if (_lpToken == address(0)) revert ZeroAddress();
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         lpToken = Token(_lpToken);
