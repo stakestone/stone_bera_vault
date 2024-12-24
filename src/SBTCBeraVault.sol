@@ -101,8 +101,6 @@ contract SBTCBeraVault is AccessControl {
         if ((shares = previewDeposit(_asset, _amount)) == 0)
             revert ZeroShares();
 
-        if (lpToken.totalSupply() + shares > cap) revert DepositCapped();
-
         TransferHelper.safeTransferFrom(
             _asset,
             msg.sender,
@@ -133,7 +131,6 @@ contract SBTCBeraVault is AccessControl {
         address _receiver
     ) external returns (uint256 assets) {
         if (_shares == 0) revert ZeroShares();
-        if (lpToken.totalSupply() + _shares > cap) revert DepositCapped();
 
         assets = previewMint(_asset, _shares);
 
