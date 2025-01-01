@@ -39,7 +39,7 @@ contract AsyncDistributor is AccessControl {
         require(!terminated, "terminated");
 
         bytes32 leaf = keccak256(
-            bytes.concat(keccak256(abi.encode(msg.sender, token, _totalAmount)))
+            bytes.concat(keccak256(abi.encode(msg.sender, _totalAmount)))
         );
 
         require(MerkleProof.verify(_proof, root, leaf), "Invalid proof");
