@@ -134,6 +134,8 @@ contract SBTCBeraVault is AccessControl {
 
         assets = previewMint(_asset, _shares);
 
+        if (assets == 0) revert ZeroAmount();
+
         TransferHelper.safeTransferFrom(
             _asset,
             msg.sender,

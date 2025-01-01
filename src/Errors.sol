@@ -19,6 +19,8 @@ error DepositPaused();
 
 error ZeroShares();
 
+error ZeroAmount();
+
 error NoRequestingShares();
 
 error NoClaimableRedeem();
