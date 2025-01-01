@@ -9,7 +9,8 @@ import {Token} from "../src/Token.sol";
 import {MockToken} from "./MockToken.sol";
 
 import "../src/Errors.sol";
-
+// need add minimum value test cases
+// add fee rate test cases
 contract SBTCBeraVaultTest is Test {
     using Math for uint256;
     Token public lpToken;
@@ -200,7 +201,18 @@ contract SBTCBeraVaultTest is Test {
         sBTCBeraVault.deposit(address(tokenC), 2e6, address(this));
         assertEq(lpToken.balanceOf(address(this)), 2e18);
     }
-
+    function test_deposit_smallValue() public {
+        address user = address(1);
+        vm.startPrank(user);
+        tokenB.mint(user, 10000 * 1e8);
+        tokenB.approve(address(sBTCBeraVault), 1000e8);
+        uint256 bal0 = tokenB.balanceOf(user);
+        sBTCBeraVault.deposit(address(tokenB), 1, user);
+        assertEq(lpToken.balanceOf(user), 1e10);
+        uint256 bal1 = tokenB.balanceOf(user);
+        assertEq(bal0 - bal1, 1);
+        vm.stopPrank();
+    }
     function test_mint_basic() public {
         tokenA.approve(address(sBTCBeraVault), 1e18);
 
@@ -210,6 +222,20 @@ contract SBTCBeraVaultTest is Test {
         tokenA.approve(address(sBTCBeraVault), 2e18);
         sBTCBeraVault.mint(address(tokenA), 2e18, address(this));
         assertEq(lpToken.balanceOf(address(this)), 2e18);
+    }
+    function test_mint_smallValue() public {
+        address user = address(1);
+        vm.startPrank(user);
+        tokenB.mint(user, 10000 * 1e8);
+        tokenB.approve(address(sBTCBeraVault), 1000e8);
+        uint256 bal0 = tokenB.balanceOf(user);
+        sBTCBeraVault.mint(address(tokenB), 1e10, user);
+        assertEq(lpToken.balanceOf(user), 1e10);
+        uint256 bal1 = tokenB.balanceOf(user);
+        assertEq(bal0 - bal1, 1);
+        vm.expectRevert(ZeroAmount.selector);
+        sBTCBeraVault.mint(address(tokenB), 1e9, user);
+        vm.stopPrank();
     }
 
     function test_mint_capped() public {
@@ -755,5 +781,111 @@ contract SBTCBeraVaultTest is Test {
         (requestToken, shares) = sBTCBeraVault.pendingRedeemRequest();
         assertEq(requestToken, address(tokenC), "New request token mismatch");
         assertEq(shares, newRedeemShares, "New request shares mismatch");
+    }
+
+    function test_setFeeRecipient() public {
+        address feeRecipient = address(10);
+        console.log("feeRecipient Address: %s", address(feeRecipient));
+
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.VAULT_OPERATOR_ROLE(), user);
+        vm.startPrank(user);
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        address feeRec = sBTCBeraVault.feeRecipient();
+        assertEq(feeRec, feeRecipient);
+        address feeRecipient1 = address(2);
+        sBTCBeraVault.setFeeRecipient(feeRecipient1);
+        feeRec = sBTCBeraVault.feeRecipient();
+        assertEq(feeRec, feeRecipient1);
+        vm.stopPrank();
+    }
+    function test_setFeeRate() public {
+        uint256 feeRate_A = 3e3; // Set a new feeRate for the asset
+        uint256 feeRate_B = 4e5; // Set a new feeRate for the asset
+        address feeRecipient = address(10);
+
+        address user = address(1);
+        vm.startPrank(user);
+        vm.expectRevert();
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_A);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.ASSETS_MANAGEMENT_ROLE(), user);
+        vm.expectRevert();
+        vm.startPrank(user);
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_A);
+        vm.stopPrank();
+        sBTCBeraVault.grantRole(sBTCBeraVault.VAULT_OPERATOR_ROLE(), user);
+        vm.startPrank(user);
+        vm.expectRevert(NoFeeRecipient.selector);
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_A);
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_A);
+        uint256 rate_A = sBTCBeraVault.feeRate(address(tokenA));
+        assertEq(rate_A, feeRate_A);
+        uint256 rate_B = sBTCBeraVault.feeRate(address(tokenB));
+        assertEq(rate_B, 0);
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_B);
+        rate_A = sBTCBeraVault.feeRate(address(tokenA));
+        assertEq(rate_A, feeRate_B);
+        vm.expectRevert(InvalidAsset.selector);
+        sBTCBeraVault.setFeeRate(address(tokenC), feeRate_A);
+        vm.expectRevert(InvalidFeeRate.selector);
+        sBTCBeraVault.setFeeRate(address(tokenA), 1e6 + 1);
+        sBTCBeraVault.setFeeRate(address(tokenA), 1e6);
+
+        vm.stopPrank();
+    }
+    function test_setFeeRate_deposit_payFee() public {
+        address feeRecipient = address(10);
+        console.log("feeRecipient Address: %s", address(feeRecipient));
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+
+        uint256 feeRate_B = 3e3; // Set a new feeRate for the asset
+        sBTCBeraVault.setFeeRate(address(tokenB), feeRate_B);
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        uint256 newCap = 20000 * 1e18; // Set a new cap for the vault
+        sBTCBeraVault.setCap(newCap);
+        address user = address(1);
+        vm.startPrank(user);
+        tokenB.mint(user, 10000 * 1e8);
+        tokenB.approve(address(sBTCBeraVault), 1000e8);
+        uint256 bal0 = tokenB.balanceOf(user);
+        sBTCBeraVault.deposit(address(tokenB), 1000e8, user);
+        assertEq(lpToken.balanceOf(user), 997e18);
+        uint256 bal1 = tokenB.balanceOf(user);
+        assertEq(bal0 - bal1, 1000e8);
+        assertEq(lpToken.balanceOf(feeRecipient), 3e18);
+        vm.stopPrank();
+    }
+    function test_setFeeRate_mint_payFee() public {
+        address feeRecipient = address(10);
+        console.log("feeRecipient Address: %s", address(feeRecipient));
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+        uint256 newCap = 20000 * 1e18; // Set a new cap for the vault
+        sBTCBeraVault.setCap(newCap);
+        uint256 feeRate_A = 3e3; // Set a new feeRate for the asset
+        sBTCBeraVault.setFeeRate(address(tokenA), feeRate_A);
+        sBTCBeraVault.setFeeRecipient(feeRecipient);
+
+        address user = address(1);
+        vm.startPrank(user);
+        tokenA.mint(user, 10000 * 1e18);
+        tokenA.approve(address(sBTCBeraVault), 1000e18);
+        uint256 bal0 = tokenA.balanceOf(user);
+        sBTCBeraVault.mint(address(tokenA), 1000e18, user);
+        assertEq(lpToken.balanceOf(user), 997e18);
+        uint256 bal1 = tokenA.balanceOf(user);
+        assertEq(bal0 - bal1, 1000e18);
+        assertEq(lpToken.balanceOf(feeRecipient), 3e18);
+        vm.stopPrank();
     }
 }
