@@ -888,4 +888,152 @@ contract SBTCBeraVaultTest is Test {
         assertEq(lpToken.balanceOf(feeRecipient), 3e18);
         vm.stopPrank();
     }
+    function test_removeUnderlyingAssetWhichIsAlsoWithdrawToken_claimRedeemRequest()
+        public
+    {
+        //tokenA is UnderlyingAsset&WithdrawToken
+        sBTCBeraVault.removeUnderlyingAsset(address(tokenA));
+        address user = address(1);
+        vm.startPrank(user);
+        tokenB.mint(user, 10000 * 1e8);
+        tokenB.approve(address(sBTCBeraVault), 1000e8);
+        sBTCBeraVault.deposit(address(tokenB), 10e8, user);
+        uint256 bal0 = tokenA.balanceOf(user);
+        uint256 lp0 = lpToken.balanceOf(user);
+
+        lpToken.approve(address(sBTCBeraVault), 1000e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 1e18);
+        tokenA.mint(address(sBTCBeraVault), 10 * 1e18);
+        vm.stopPrank();
+        sBTCBeraVault.rollToNextRound();
+        vm.startPrank(user);
+        sBTCBeraVault.claimRedeemRequest();
+        uint256 bal1 = tokenA.balanceOf(user);
+        assertEq(bal1 - bal0, 1e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 1e18);
+        vm.stopPrank();
+        sBTCBeraVault.rollToNextRound();
+        vm.startPrank(user);
+        sBTCBeraVault.requestRedeem(address(tokenC), 1e18);
+        uint256 bal2 = tokenA.balanceOf(user);
+        assertEq(bal2 - bal1, 1e18);
+        vm.stopPrank();
+    }
+    function test_rollToNextRound_multipleUsers() public {
+        address user1 = address(1);
+        address user2 = address(2);
+
+        // Mint tokens for both users
+        tokenA.mint(user1, 10e18); //
+        tokenB.mint(user1, 30e8); //
+        tokenC.mint(user1, 30e6); ////
+        tokenA.mint(user2, 15e18); //
+        tokenB.mint(user2, 20e8);
+        tokenC.mint(user2, 30e6);
+        sBTCBeraVault.addUnderlyingAsset(address(tokenC));
+        sBTCBeraVault.setCap(1000e18);
+
+        vm.startPrank(user1);
+        tokenA.approve(address(sBTCBeraVault), 100e18);
+        tokenB.approve(address(sBTCBeraVault), 100e8);
+        tokenC.approve(address(sBTCBeraVault), 100e8);
+        lpToken.approve(address(sBTCBeraVault), 100e18);
+        sBTCBeraVault.deposit(address(tokenA), 10e18, user1);
+        sBTCBeraVault.deposit(address(tokenB), 30e8, user1);
+        sBTCBeraVault.deposit(address(tokenC), 20e6, user1);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        tokenA.approve(address(sBTCBeraVault), 100e18);
+        tokenB.approve(address(sBTCBeraVault), 100e8);
+        tokenC.approve(address(sBTCBeraVault), 100e8);
+        lpToken.approve(address(sBTCBeraVault), 100e18);
+        sBTCBeraVault.deposit(address(tokenA), 15e18, user2);
+        sBTCBeraVault.deposit(address(tokenB), 20e8, user2);
+        sBTCBeraVault.deposit(address(tokenC), 20e6, user2);
+
+        vm.stopPrank();
+        assertEq(tokenA.balanceOf(address(sBTCBeraVault)), 25e18);
+        assertEq(tokenB.balanceOf(address(sBTCBeraVault)), 50e8);
+        assertEq(tokenC.balanceOf(address(sBTCBeraVault)), 40e6);
+
+        vm.startPrank(user1);
+        sBTCBeraVault.requestRedeem(address(tokenA), 5e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 1e18);
+        vm.stopPrank();
+        vm.startPrank(user2);
+        sBTCBeraVault.requestRedeem(address(tokenC), 4e18);
+        sBTCBeraVault.requestRedeem(address(tokenC), 3e18);
+        vm.stopPrank();
+        assertEq(tokenA.balanceOf(address(sBTCBeraVault)), 25e18);
+        assertEq(tokenB.balanceOf(address(sBTCBeraVault)), 50e8);
+        assertEq(tokenC.balanceOf(address(sBTCBeraVault)), 40e6);
+
+        sBTCBeraVault.rollToNextRound();
+
+        vm.startPrank(user1);
+        sBTCBeraVault.requestRedeem(address(tokenC), 5e18);
+        sBTCBeraVault.requestRedeem(address(tokenC), 1e18);
+
+        vm.stopPrank();
+        vm.startPrank(user2);
+        sBTCBeraVault.requestRedeem(address(tokenA), 4e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 3e18);
+        vm.stopPrank();
+        assertEq(tokenA.balanceOf(address(sBTCBeraVault)), 19e18);
+        assertEq(tokenB.balanceOf(address(sBTCBeraVault)), 50e8);
+        assertEq(tokenC.balanceOf(address(sBTCBeraVault)), 33e6);
+
+        sBTCBeraVault.rollToNextRound(); // Move to the next round
+
+        vm.startPrank(user1);
+        sBTCBeraVault.requestRedeem(address(tokenA), 6e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 2e18);
+
+        vm.startPrank(user2);
+        sBTCBeraVault.requestRedeem(address(tokenA), 1e18);
+        sBTCBeraVault.requestRedeem(address(tokenA), 3e18);
+
+        assertEq(tokenA.balanceOf(address(sBTCBeraVault)), 12e18);
+        assertEq(tokenB.balanceOf(address(sBTCBeraVault)), 50e8);
+        assertEq(tokenC.balanceOf(address(sBTCBeraVault)), 27e6);
+        vm.stopPrank();
+
+        sBTCBeraVault.rollToNextRound();
+        vm.startPrank(user1);
+        sBTCBeraVault.requestRedeem(address(tokenC), 11e18);
+        vm.stopPrank();
+        vm.startPrank(user2);
+        sBTCBeraVault.requestRedeem(address(tokenC), 16e18);
+        vm.stopPrank();
+        sBTCBeraVault.rollToNextRound();
+
+        vm.startPrank(user1);
+        sBTCBeraVault.claimRedeemRequest();
+        uint256 bal1 = tokenA.balanceOf(user1);
+        assertEq(bal1, 14e18);
+        uint256 bal2 = tokenB.balanceOf(user1);
+        assertEq(bal2, 0);
+        uint256 bal3 = tokenC.balanceOf(user1);
+        assertEq(bal3, 27e6);
+
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        sBTCBeraVault.claimRedeemRequest();
+        uint256 bal1_1 = tokenA.balanceOf(user2);
+        assertEq(bal1_1, 11e18);
+        uint256 bal2_1 = tokenB.balanceOf(user2);
+        assertEq(bal2_1, 0);
+        uint256 bal3_1 = tokenC.balanceOf(user2);
+        assertEq(bal3_1, 33e6);
+
+        vm.stopPrank();
+        uint256 bal1_2 = tokenA.balanceOf(address(sBTCBeraVault));
+        uint256 bal2_2 = tokenB.balanceOf(address(sBTCBeraVault));
+        uint256 bal3_2 = tokenC.balanceOf(address(sBTCBeraVault));
+        assertEq(bal1_2, 0);
+        assertEq(bal2_2, 50e8);
+        assertEq(bal3_2, 0);
+    }
 }
